@@ -12,6 +12,7 @@
 #include <iostream>
 #include <fstream>
 #include <sstream>
+#include <QTimer>
 
 
 MainWindow::MainWindow(QWidget *parent)
@@ -21,10 +22,10 @@ MainWindow::MainWindow(QWidget *parent)
     ui->setupUi(this);
 
     widget = new TerrainWidget();
-	QGridLayout* GLlayout = new QGridLayout;
+    QGridLayout* GLlayout = new QGridLayout;
     GLlayout->addWidget(widget, 0, 0);
-	GLlayout->setContentsMargins(0, 0, 0, 0);
-	ui->glWidget->setLayout(GLlayout);
+    GLlayout->setContentsMargins(0, 0, 0, 0);
+    ui->glWidget->setLayout(GLlayout);
 
     widget->setCamera(Camera(Vector3(-10.0, -10.0, 10.0), Vector3(0.0, 0.0, 0.0)));
 
@@ -38,6 +39,21 @@ MainWindow::MainWindow(QWidget *parent)
     for (QRadioButton* rb : allRadioButtons) {
         baseTexButtonGroup->addButton(rb);
     }
+
+    // Para testeaar el proceso de obtener una métrica
+    QTimer::singleShot(1000, this, [this]() {
+        qDebug() << "Testing processPNGtoMetricAndSave...";
+        bool success = processPNGtoMetricAndSave(
+            "C:/Users/santi/OneDrive/Documentos/PSAT/alps-montblanc.png", //Input temporal
+            60000.0,  // width en metros
+            60000.0,  // height en metros
+            454,     // min Z
+            4810.0,  // max Z
+            1.0,     // scale
+            "C:/Users/santi/OneDrive/Documentos/PSAT/salida.txt"   // Output temporal
+        );
+        qDebug() << "Process result:" << success;
+    });
 }
 
 MainWindow::~MainWindow()
@@ -800,4 +816,44 @@ void MainWindow::updateViewshedLocation()
     if (ui->dem_viewshedLoc->isChecked()) {
         redrawBaseTexture();
     }
+}
+
+// Carga PNG como heightfield, fuerza el cálculo y guarda el métrico
+bool MainWindow::processPNGtoMetricAndSave(const QString& inputPNG,
+                                           double hfWidth, double hfHeight,
+                                           double hfMinZ, double hfMaxZ,
+                                           double scale,
+                                           const QString& outMetricPath)
+{
+    // TODO: loadHeightfield debe implementarse para no depender de variables globales
+    loadHeightfield(inputPNG, hfWidth, hfHeight, hfMinZ, hfMaxZ, scale);
+
+    //TODO: crear una función específica para elegir el métrico
+    computeMetric();
+
+    return saveMetricToFile(outMetricPath);
+}
+
+bool MainWindow::saveMetricToFile(const QString& filename) const
+{
+    if (currentMetric.getNumElements() == 0) {
+        qDebug() << "No metric available to save";
+        return false;
+    }
+
+    QFile file(filename);
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        qDebug() << "Failed to open file for writing:" << filename;
+        return false;
+    }
+    QTextStream out(&file);
+    for (int i = 0; i < currentMetric.getSizeX(); i++) {
+        for (int j = 0; j < currentMetric.getSizeY(); j++) {
+            if (j > 0) out << " ";
+            out << currentMetric.at(i, j);
+        }
+        out << "\n";
+    }
+    file.close();
+    return true;
 }

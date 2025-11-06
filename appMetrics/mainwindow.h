@@ -41,6 +41,15 @@ public slots:
     void loadASC();
     void updateDEM();
 
+    // PSAT: Guardar metric a archivo (sin diálogo) y proceso "cargar PNG -> calcular -> guardar"
+    bool saveMetricToFile(const QString& filename) const;
+    bool processPNGtoMetricAndSave(const QString& inputPNG,
+                                   double hfWidth, double hfHeight,
+                                   double hfMinZ, double hfMaxZ,
+                                   double scale,
+                                   const QString& outMetricPath);
+
+
     // presets
     void loadPreset();
     void updatePresetInfo();
