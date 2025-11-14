@@ -48,6 +48,7 @@ public slots:
                                    double hfMinZ, double hfMaxZ,
                                    double scale,
                                    const QString& outMetricPath);
+    void setCurrentMetric(const QString& metricName);
 
 
     // presets

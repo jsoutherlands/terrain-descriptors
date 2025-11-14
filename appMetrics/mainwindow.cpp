@@ -705,7 +705,7 @@ void disableComboBoxItem(QComboBox * comboBox, int index)
 
 void MainWindow::createPresets()
 {
-    QFile file("terrains/presets.txt");
+,    QFile file("C:/Users/santi/OneDrive/Documentos/PSAT/testtt/presets.txt");
     if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
         std::cout << "Could not find preset terrains file" << std::endl;
         return;
@@ -823,15 +823,47 @@ bool MainWindow::processPNGtoMetricAndSave(const QString& inputPNG,
                                            double hfWidth, double hfHeight,
                                            double hfMinZ, double hfMaxZ,
                                            double scale,
-                                           const QString& outMetricPath)
+                                           const QString& outMetricBasePath)
 {
-    // TODO: loadHeightfield debe implementarse para no depender de variables globales
+    return true;
+    // Cargar el heightfield
     loadHeightfield(inputPNG, hfWidth, hfHeight, hfMinZ, hfMaxZ, scale);
 
-    //TODO: crear una función específica para elegir el métrico
-    computeMetric();
+    // Lista de métricas a calcular
+    QStringList metrics = {
+        "dem_slopeGradient",       // Slope - primera para comparar
+        "dem_curvMin",            // Curvature mínima (geométrica)
+        "dem_curvMax",            // Curvature máxima (geométrica)  
+        "dem_curvTangent",        // Curvature tangencial (basada en gravedad)
+        "dem_curvProfile",        // Curvature de perfil (basada en gravedad)
+        "dem_surfaceRoughness",   // Roughness - distribución de normales
+        "dem_tpi",                // TPI - puntos arriba/abajo del vecindario
+        "dem_streamArea",         // Stream area - red hidrográfica
+        "dem_branchLength",       // Max Branch length - longitud de ramas
+        "dem_jut",                // Jut - formas marcadas/espectaculares
+        "dem_tpiClass"            // Classes - clasificación Weiss 2001 con TPI a dos escalas
+    };
 
-    return saveMetricToFile(outMetricPath);
+    bool allSuccess = true;
+    
+    for (const QString& metric : metrics) {
+        setCurrentMetric(metric);
+        
+        QFileInfo fileInfo(outMetricBasePath);
+        QString metricOutPath = fileInfo.path() + "/" + 
+                               fileInfo.baseName() + "_" + metric + "." + 
+                               fileInfo.suffix();
+        
+        // Guardar la métrica
+        if (!saveMetricToFile(metricOutPath)) {
+            qDebug() << "Failed to save metric" << metric << "to" << metricOutPath;
+            allSuccess = false;
+        } else {
+            qDebug() << "Successfully saved metric" << metric << "to" << metricOutPath;
+        }
+    }
+    
+    return allSuccess;
 }
 
 bool MainWindow::saveMetricToFile(const QString& filename) const
@@ -856,4 +888,20 @@ bool MainWindow::saveMetricToFile(const QString& filename) const
     }
     file.close();
     return true;
+}
+
+
+void MainWindow::setCurrentMetric(const QString& metricName)
+{
+    // Buscar y activar el radio button correspondiente a la métrica
+    QList<QRadioButton*> radioButtons = ui->demToolbox->findChildren<QRadioButton*>();
+    
+    for (QRadioButton* radioButton : radioButtons) {
+        if (radioButton->objectName() == metricName) {
+            radioButton->setChecked(true);
+            break;
+        }
+    }
+    
+    computeBaseTexture();
 }
