@@ -41,19 +41,15 @@ MainWindow::MainWindow(QWidget *parent)
     }
 
     // Para testeaar el proceso de obtener una métrica
-    QTimer::singleShot(1000, this, [this]() {
+        QTimer::singleShot(1000, this, [this]() {
         qDebug() << "Testing processPNGtoMetricAndSave...";
         bool success = processPNGtoMetricAndSave(
-            "C:/Users/santi/OneDrive/Documentos/PSAT/alps-montblanc.png", //Input temporal
-            60000.0,  // width en metros
-            60000.0,  // height en metros
-            454,     // min Z
-            4810.0,  // max Z
-            1.0,     // scale
-            "C:/Users/santi/OneDrive/Documentos/PSAT/salida.txt"   // Output temporal
+            "C:/Users/santi/terrain-descriptors-1/terrains/resultsPipeline/alps-montblanc.png", //Input temporal
+            "C:/Users/santi/terrain-descriptors-1/terrains/resultsPipeline/salida.txt"   // Output temporal
         );
         qDebug() << "Process result:" << success;
     });
+
 }
 
 MainWindow::~MainWindow()
@@ -705,7 +701,7 @@ void disableComboBoxItem(QComboBox * comboBox, int index)
 
 void MainWindow::createPresets()
 {
-,    QFile file("C:/Users/santi/OneDrive/Documentos/PSAT/testtt/presets.txt");
+    QFile file("C:/Users/santi/terrain-descriptors-1/terrains/presets.txt");
     if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
         std::cout << "Could not find preset terrains file" << std::endl;
         return;
@@ -754,7 +750,7 @@ void MainWindow::createPresets()
         if (isSelected)
             ui->cb_preset->setCurrentIndex(ui->cb_preset->count()-1);
         presetTerrains[name.toStdString()] = PresetTerrain(
-            dataPath + imagePath,
+            "C:/Users/santi/terrain-descriptors-1/"+imagePath,
             imgWidth, imgHeight,
             terrainWidth, terrainHeight,
             minElev, maxElev,
@@ -818,30 +814,86 @@ void MainWindow::updateViewshedLocation()
     }
 }
 
+void MainWindow::processAllPresets()
+{
+    QString outputBaseDir = "C:/Users/santi/terrain-descriptors-1/terrains/resultsPipeline";
+    
+    // Iterar sobre todos los presets
+    for (const auto& presetEntry : presetTerrains) {
+        
+        qDebug() << "Processing preset:" << QString::fromStdString(presetEntry.first);
+        const QString presetName = QString::fromStdString(presetEntry.first);
+        const PresetTerrain& preset = presetEntry.second;
+        
+        // Crear carpeta para el preset
+        QString presetOutputDir = outputBaseDir + "/" + presetName;
+        QDir().mkpath(presetOutputDir);
+        
+        // Cargar el preset actual
+        loadHeightfield(preset.imagePath, preset.terrainX, preset.terrainY,
+                       preset.hmin, preset.hmax, ui->sb_presetFactor->value());
+        
+        // Procesar todas las métricas para este preset
+        processAllMetricsForCurrentPreset(presetOutputDir);
+    }
+}
+
+void MainWindow::processAllMetricsForCurrentPreset(const QString& outputDir)
+{
+    // Lista de métricas a calcular
+    QStringList metrics = {
+        "dem_slopeGradient",
+        "dem_curvMin", 
+        "dem_curvMax",
+    };
+
+    for (const QString& metric : metrics) {
+        setCurrentMetric(metric);
+        
+        qDebug() << "Computing metric:" << metric;
+        
+        QString metricOutPath = outputDir + "/" + metric + ".txt";
+        
+        if (!saveMetricToFile(metricOutPath)) {
+            qDebug() << "Failed to save metric" << metric << "to" << metricOutPath;
+        } else {
+            qDebug() << "Successfully saved metric" << metric << "to" << metricOutPath;
+        }
+    }
+}
+
+
+
+void MainWindow::setCurrentMetric(const QString& metricName)
+{
+    // Buscar y activar el radio button correspondiente a la métrica
+    QList<QRadioButton*> radioButtons = ui->demToolbox->findChildren<QRadioButton*>();
+    
+    for (QRadioButton* radioButton : radioButtons) {
+        if (radioButton->objectName() == metricName) {
+            radioButton->setChecked(true);
+            // Forzar el cálculo de la métrica
+            computeBaseTexture();
+            break;
+        }
+    }
+}
+
 // Carga PNG como heightfield, fuerza el cálculo y guarda el métrico
 bool MainWindow::processPNGtoMetricAndSave(const QString& inputPNG,
-                                           double hfWidth, double hfHeight,
-                                           double hfMinZ, double hfMaxZ,
-                                           double scale,
                                            const QString& outMetricBasePath)
 {
-    return true;
-    // Cargar el heightfield
-    loadHeightfield(inputPNG, hfWidth, hfHeight, hfMinZ, hfMaxZ, scale);
+    loadPreset(); // cargar preset para inicializar variables
 
     // Lista de métricas a calcular
     QStringList metrics = {
         "dem_slopeGradient",       // Slope - primera para comparar
-        "dem_curvMin",            // Curvature mínima (geométrica)
-        "dem_curvMax",            // Curvature máxima (geométrica)  
-        "dem_curvTangent",        // Curvature tangencial (basada en gravedad)
         "dem_curvProfile",        // Curvature de perfil (basada en gravedad)
         "dem_surfaceRoughness",   // Roughness - distribución de normales
         "dem_tpi",                // TPI - puntos arriba/abajo del vecindario
         "dem_streamArea",         // Stream area - red hidrográfica
         "dem_branchLength",       // Max Branch length - longitud de ramas
         "dem_jut",                // Jut - formas marcadas/espectaculares
-        "dem_tpiClass"            // Classes - clasificación Weiss 2001 con TPI a dos escalas
     };
 
     bool allSuccess = true;
@@ -890,18 +942,3 @@ bool MainWindow::saveMetricToFile(const QString& filename) const
     return true;
 }
 
-
-void MainWindow::setCurrentMetric(const QString& metricName)
-{
-    // Buscar y activar el radio button correspondiente a la métrica
-    QList<QRadioButton*> radioButtons = ui->demToolbox->findChildren<QRadioButton*>();
-    
-    for (QRadioButton* radioButton : radioButtons) {
-        if (radioButton->objectName() == metricName) {
-            radioButton->setChecked(true);
-            break;
-        }
-    }
-    
-    computeBaseTexture();
-}
